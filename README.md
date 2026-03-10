@@ -9,8 +9,28 @@ A [home-manager](https://github.com/nix-community/home-manager) module that lets
 - Integrates Homebrew into your shell (bash, zsh, fish, nushell)
 - Sets the standard Homebrew environment variables and prefers Nix-provided `curl`/`git`
 - Exposes an `install-brew-packages` command you can re-run at any time
+- Provides a `brew-wrapper` package that works without shell restarts
 
 ## Usage
+
+### Quick Start (Wrapper Package - Recommended)
+
+The wrapper package approach works immediately without shell restarts:
+
+```nix
+{
+  inputs.nix-linuxbrew.url = "github:deepwatrcreatur/nix-linuxbrew";
+
+  # Add just the wrapper - no module import needed
+  home.packages = [ nix-linuxbrew.packages.${system}.brew-wrapper ];
+}
+```
+
+The wrapper automatically sets `HOMEBREW_CURL_PATH` and `HOMEBREW_GIT_PATH` on every `brew` invocation, avoiding shell guard issues.
+
+### Full Module Integration
+
+For deeper integration with declarative package management:
 
 ### 1. Add the flake input
 
