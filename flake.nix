@@ -27,7 +27,7 @@
             export HOMEBREW_GIT_PATH="${pkgs.git}/bin/git"
             
             # Add Homebrew to PATH for this invocation
-            export PATH="${brewPrefix}/bin:${brewPrefix}/sbin:$PATH"
+            export PATH="${brewPrefix}/bin:${brewPrefix}/sbin:${pkgs.openssh}/bin:$PATH"
             
             exec ${brewPrefix}/bin/brew "$@"
           '';

@@ -39,6 +39,7 @@ let
     pkgs.gnutar
     pkgs.gzip
     pkgs.which
+    pkgs.openssh
   ];
 
   installBrewScript = pkgs.writeShellScript "install-brew-packages" ''
