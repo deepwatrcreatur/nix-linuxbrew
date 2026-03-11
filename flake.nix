@@ -29,6 +29,18 @@
               exec ${pkgs.git}/bin/git "$@"
             ''}"
             
+            # Set compiler preferences (prefer clang if available, fallback to gcc)
+            if [ -x "${brewPrefix}/bin/clang" ]; then
+              export HOMEBREW_CC="${brewPrefix}/bin/clang"
+              export HOMEBREW_CXX="${brewPrefix}/bin/clang++"
+            elif [ -x "${brewPrefix}/bin/gcc" ]; then
+              export HOMEBREW_CC="${brewPrefix}/bin/gcc"
+              export HOMEBREW_CXX="${brewPrefix}/bin/g++"
+            elif [ -x "${brewPrefix}/bin/gcc-15" ]; then
+              export HOMEBREW_CC="${brewPrefix}/bin/gcc-15"
+              export HOMEBREW_CXX="${brewPrefix}/bin/g++-15"
+            fi
+            
             # Add Homebrew to PATH for this invocation
             export PATH="${brewPrefix}/bin:${brewPrefix}/sbin:${pkgs.openssh}/bin:$PATH"
             
