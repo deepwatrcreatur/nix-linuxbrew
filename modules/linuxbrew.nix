@@ -105,6 +105,14 @@ let
       '') cfg.brews
     )}
 
+    # Ensure compiler is installed for building from source
+    ${optionalString cfg.ensureCompiler ''
+      if ! "${brewPrefix}/bin/brew" list llvm &>/dev/null; then
+        echo "Installing LLVM (compiler toolchain for building from source)..."
+        "${brewPrefix}/bin/brew" install llvm || echo "Warning: Failed to install LLVM"
+      fi
+    ''}
+
     echo "Homebrew setup complete!"
     echo "Run 'brew upgrade' to update outdated packages"
   '';
@@ -131,6 +139,17 @@ in
       default = [ ];
       example = [ "hello" "wget" "jq" ];
       description = "List of Homebrew formulae to install.";
+    };
+
+    ensureCompiler = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Automatically install LLVM for building formulae from source.
+        This matches the macOS experience where Xcode Command Line Tools
+        are required. LLVM provides unversioned clang/clang++ compilers.
+        Set to false if you prefer to manage compilers manually.
+      '';
     };
   };
 
