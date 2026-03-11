@@ -24,7 +24,10 @@
             export HOMEBREW_CELLAR="${brewPrefix}/Cellar"
             export HOMEBREW_REPOSITORY="${brewPrefix}/Homebrew"
             export HOMEBREW_CURL_PATH="${pkgs.curl}/bin/curl"
-            export HOMEBREW_GIT_PATH="${pkgs.git}/bin/git"
+            export HOMEBREW_GIT_PATH="${pkgs.writeShellScript "brew-git" ''
+              export PATH="${pkgs.openssh}/bin:$PATH"
+              exec ${pkgs.git}/bin/git "$@"
+            ''}"
             
             # Add Homebrew to PATH for this invocation
             export PATH="${brewPrefix}/bin:${brewPrefix}/sbin:${pkgs.openssh}/bin:$PATH"

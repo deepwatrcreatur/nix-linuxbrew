@@ -78,7 +78,10 @@ let
 
     # Prefer Nix-provided curl/git on NixOS.
     export HOMEBREW_CURL_PATH="${pkgs.curl}/bin/curl"
-    export HOMEBREW_GIT_PATH="${pkgs.git}/bin/git"
+    export HOMEBREW_GIT_PATH="${pkgs.writeShellScript "brew-git" ''
+      export PATH="${pkgs.openssh}/bin:$PATH"
+      exec ${pkgs.git}/bin/git "$@"
+    ''}"
 
     # Add taps (continue on failure)
     ${concatStringsSep "\n" (
@@ -138,7 +141,10 @@ in
       HOMEBREW_CELLAR = "${brewPrefix}/Cellar";
       HOMEBREW_REPOSITORY = "${brewPrefix}/Homebrew";
       HOMEBREW_CURL_PATH = "${pkgs.curl}/bin/curl";
-      HOMEBREW_GIT_PATH = "${pkgs.git}/bin/git";
+      HOMEBREW_GIT_PATH = "${pkgs.writeShellScript "brew-git" ''
+        export PATH="${pkgs.openssh}/bin:$PATH"
+        exec ${pkgs.git}/bin/git "$@"
+      ''}";
     };
 
     # Shell integration — only when the respective shell program is enabled
