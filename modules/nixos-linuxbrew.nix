@@ -13,11 +13,6 @@ let
   # Get the parent directory of brewPrefix (e.g., /home/linuxbrew from /home/linuxbrew/.linuxbrew)
   brewParentDir = dirOf cfg.brewPrefix;
 
-  # Resolve owner UID/GID from config.users.users if owner is specified
-  ownerUser = if cfg.owner != null then config.users.users.${cfg.owner} or null else null;
-  ownerUid = if ownerUser != null then toString ownerUser.uid else null;
-  ownerGid = if ownerUser != null then toString ownerUser.group else null;
-
   # Compatibility symlinks for Homebrew installer on NixOS
   # Homebrew expects certain tools in /bin and /usr/bin
   compatLinks = [
@@ -61,25 +56,24 @@ let
     set -euo pipefail
 
     # Create brewPrefix directory with proper permissions
-    # Check the actual prefix, not a hardcoded path
     if [ ! -d "${cfg.brewPrefix}" ]; then
       ${mkdir} -p "${cfg.brewPrefix}"
     fi
 
-    # Ensure parent directory exists and has correct permissions
+    # Ensure parent directory exists
     if [ ! -d "${brewParentDir}" ]; then
       ${mkdir} -p "${brewParentDir}"
     fi
 
     # Determine owner - use configured owner or fall back to first regular user
     ${if cfg.owner != null then ''
-      # Use explicitly configured owner
-      OWNER_UID="${ownerUid}"
-      OWNER_GID="$(${id} -g "${cfg.owner}")"
-      if [ -z "$OWNER_UID" ] || [ -z "$OWNER_GID" ]; then
-        echo "Error: Could not resolve UID/GID for configured owner '${cfg.owner}'" >&2
+      # Use explicitly configured owner - resolve at runtime
+      if ! ${id} "${cfg.owner}" &>/dev/null; then
+        echo "Error: Configured owner '${cfg.owner}' does not exist" >&2
         exit 1
       fi
+      OWNER_UID=$(${id} -u "${cfg.owner}")
+      OWNER_GID=$(${id} -g "${cfg.owner}")
     '' else ''
       # Fall back to first regular user (UID >= 1000, not nobody)
       REGULAR_USER=$(${awk} -F: '$3 >= 1000 && $3 != 65534 { print $1; exit }' /etc/passwd)
