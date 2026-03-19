@@ -10,6 +10,14 @@ with lib;
 let
   cfg = config.programs.linuxbrew;
 
+  # Get the parent directory of brewPrefix (e.g., /home/linuxbrew from /home/linuxbrew/.linuxbrew)
+  brewParentDir = dirOf cfg.brewPrefix;
+
+  # Resolve owner UID/GID from config.users.users if owner is specified
+  ownerUser = if cfg.owner != null then config.users.users.${cfg.owner} or null else null;
+  ownerUid = if ownerUser != null then toString ownerUser.uid else null;
+  ownerGid = if ownerUser != null then toString ownerUser.group else null;
+
   # Compatibility symlinks for Homebrew installer on NixOS
   # Homebrew expects certain tools in /bin and /usr/bin
   compatLinks = [
@@ -41,23 +49,60 @@ let
     [ "${pkgs.glibc.bin}/bin/ldd" "/usr/bin/ldd" ]
   ];
 
+  # Pinned paths for core utilities
+  mkdir = "${pkgs.coreutils}/bin/mkdir";
+  chown = "${pkgs.coreutils}/bin/chown";
+  chmod = "${pkgs.coreutils}/bin/chmod";
+  ln = "${pkgs.coreutils}/bin/ln";
+  id = "${pkgs.coreutils}/bin/id";
+  awk = "${pkgs.gawk}/bin/awk";
+
   linuxbrewSetupScript = pkgs.writeShellScript "linuxbrew-system-setup" ''
-    # Create linuxbrew directory with proper permissions
-    if [ ! -d /home/linuxbrew ]; then
-      mkdir -p ${cfg.brewPrefix}
-      # Find the first regular user (UID >= 1000, not nobody)
-      REGULAR_USER=$(${pkgs.gawk}/bin/awk -F: '$3 >= 1000 && $3 != 65534 { print $1; exit }' /etc/passwd)
-      if [ -n "$REGULAR_USER" ]; then
-        USER_UID=$(id -u "$REGULAR_USER")
-        USER_GID=$(id -g "$REGULAR_USER")
-        chown -R $USER_UID:$USER_GID /home/linuxbrew
-        chmod 755 /home/linuxbrew
+    set -euo pipefail
+
+    # Create brewPrefix directory with proper permissions
+    # Check the actual prefix, not a hardcoded path
+    if [ ! -d "${cfg.brewPrefix}" ]; then
+      ${mkdir} -p "${cfg.brewPrefix}"
+    fi
+
+    # Ensure parent directory exists and has correct permissions
+    if [ ! -d "${brewParentDir}" ]; then
+      ${mkdir} -p "${brewParentDir}"
+    fi
+
+    # Determine owner - use configured owner or fall back to first regular user
+    ${if cfg.owner != null then ''
+      # Use explicitly configured owner
+      OWNER_UID="${ownerUid}"
+      OWNER_GID="$(${id} -g "${cfg.owner}")"
+      if [ -z "$OWNER_UID" ] || [ -z "$OWNER_GID" ]; then
+        echo "Error: Could not resolve UID/GID for configured owner '${cfg.owner}'" >&2
+        exit 1
       fi
+    '' else ''
+      # Fall back to first regular user (UID >= 1000, not nobody)
+      REGULAR_USER=$(${awk} -F: '$3 >= 1000 && $3 != 65534 { print $1; exit }' /etc/passwd)
+      if [ -n "$REGULAR_USER" ]; then
+        OWNER_UID=$(${id} -u "$REGULAR_USER")
+        OWNER_GID=$(${id} -g "$REGULAR_USER")
+      else
+        echo "Warning: No regular user found and no owner configured. Directory will be root-owned." >&2
+        echo "Consider setting programs.linuxbrew.owner to specify the intended user." >&2
+        OWNER_UID=""
+        OWNER_GID=""
+      fi
+    ''}
+
+    # Set ownership on the prefix and its parent
+    if [ -n "''${OWNER_UID:-}" ] && [ -n "''${OWNER_GID:-}" ]; then
+      ${chown} -R "$OWNER_UID:$OWNER_GID" "${brewParentDir}"
+      ${chmod} 755 "${brewParentDir}"
     fi
 
     # Create compatibility symlinks for Homebrew installer
-    mkdir -p /bin /usr/bin
-    ${concatMapStringsSep "\n" (link: ''ln -sf ${builtins.elemAt link 0} ${builtins.elemAt link 1}'') compatLinks}
+    ${mkdir} -p /bin /usr/bin
+    ${concatMapStringsSep "\n" (link: ''${ln} -sf ${builtins.elemAt link 0} ${builtins.elemAt link 1}'') compatLinks}
   '';
 in
 {
@@ -68,6 +113,17 @@ in
       type = types.str;
       default = "/home/linuxbrew/.linuxbrew";
       description = "Path where Homebrew is (or will be) installed.";
+    };
+
+    owner = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "myuser";
+      description = ''
+        Username who should own the Homebrew directory.
+        If not set, defaults to the first regular user (UID >= 1000) found in /etc/passwd.
+        On multi-user systems, you should explicitly set this to the user who will run home-manager.
+      '';
     };
   };
 
