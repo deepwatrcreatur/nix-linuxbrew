@@ -52,17 +52,32 @@ let
   id = "${pkgs.coreutils}/bin/id";
   awk = "${pkgs.gawk}/bin/awk";
 
+  # Safety check: list of directories that should never be chowned
+  dangerousPaths = [ "/" "/bin" "/boot" "/dev" "/etc" "/home" "/lib" "/lib64" "/mnt" "/nix" "/opt" "/proc" "/root" "/run" "/sbin" "/srv" "/sys" "/tmp" "/usr" "/var" ];
+
   linuxbrewSetupScript = pkgs.writeShellScript "linuxbrew-system-setup" ''
     set -euo pipefail
 
-    # Create brewPrefix directory with proper permissions
-    if [ ! -d "${cfg.brewPrefix}" ]; then
-      ${mkdir} -p "${cfg.brewPrefix}"
+    BREW_PREFIX="${cfg.brewPrefix}"
+    BREW_PARENT="${brewParentDir}"
+
+    # Safety check: prevent catastrophic chown on system directories
+    for dangerous in ${concatStringsSep " " dangerousPaths}; do
+      if [ "$BREW_PARENT" = "$dangerous" ]; then
+        echo "Error: brewPrefix parent '$BREW_PARENT' is a protected system directory." >&2
+        echo "Please use a prefix like '/home/linuxbrew/.linuxbrew' or '/opt/linuxbrew/.linuxbrew'" >&2
+        exit 1
+      fi
+    done
+
+    # Ensure parent directory exists first
+    if [ ! -d "$BREW_PARENT" ]; then
+      ${mkdir} -p "$BREW_PARENT"
     fi
 
-    # Ensure parent directory exists
-    if [ ! -d "${brewParentDir}" ]; then
-      ${mkdir} -p "${brewParentDir}"
+    # Then create the prefix directory
+    if [ ! -d "$BREW_PREFIX" ]; then
+      ${mkdir} -p "$BREW_PREFIX"
     fi
 
     # Determine owner - use configured owner or fall back to first regular user
@@ -88,10 +103,13 @@ let
       fi
     ''}
 
-    # Set ownership on the prefix and its parent
+    # Set ownership: non-recursive on parent, recursive only on prefix
     if [ -n "''${OWNER_UID:-}" ] && [ -n "''${OWNER_GID:-}" ]; then
-      ${chown} -R "$OWNER_UID:$OWNER_GID" "${brewParentDir}"
-      ${chmod} 755 "${brewParentDir}"
+      # Non-recursive chown on parent directory (safe)
+      ${chown} "$OWNER_UID:$OWNER_GID" "$BREW_PARENT"
+      ${chmod} 755 "$BREW_PARENT"
+      # Recursive chown only on the actual prefix directory
+      ${chown} -R "$OWNER_UID:$OWNER_GID" "$BREW_PREFIX"
     fi
 
     # Create compatibility symlinks for Homebrew installer
@@ -106,7 +124,11 @@ in
     brewPrefix = mkOption {
       type = types.str;
       default = "/home/linuxbrew/.linuxbrew";
-      description = "Path where Homebrew is (or will be) installed.";
+      description = ''
+        Path where Homebrew is (or will be) installed.
+        The parent directory of this path will be created and owned by the specified user.
+        For safety, the parent directory must not be a system directory like /opt, /usr, etc.
+      '';
     };
 
     owner = mkOption {
@@ -122,6 +144,19 @@ in
   };
 
   config = mkIf cfg.enableSystemSetup {
+    # Assertion to catch dangerous configurations at evaluation time
+    assertions = [
+      {
+        assertion = !(builtins.elem brewParentDir dangerousPaths);
+        message = ''
+          programs.linuxbrew.brewPrefix is set to "${cfg.brewPrefix}" which has parent
+          directory "${brewParentDir}". This is a protected system directory and would
+          cause dangerous ownership changes. Please use a safer prefix like
+          "/home/linuxbrew/.linuxbrew" or "/opt/linuxbrew/.linuxbrew".
+        '';
+      }
+    ];
+
     system.activationScripts.linuxbrew.text = ''
       echo "Running Linuxbrew system setup script and compatibility link setup..."
       ${linuxbrewSetupScript}
