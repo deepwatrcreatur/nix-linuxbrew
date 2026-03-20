@@ -1,5 +1,47 @@
 # Release Notes
 
+## v1.1.0 - NixOS Module Support (2026-03-19)
+
+### New Features
+
+**NixOS System Module**: Added `nixosModules.default` for system-level directory setup.
+
+On NixOS, creating `/home/linuxbrew` requires root privileges. The new NixOS module handles this during system activation:
+
+```nix
+{ inputs, ... }:
+{
+  imports = [ inputs.nix-linuxbrew.nixosModules.default ];
+  programs.linuxbrew.enableSystemSetup = true;
+}
+```
+
+### Architecture
+
+The flake now provides two complementary modules:
+
+| Module | Runs As | Purpose |
+|--------|---------|---------|
+| `nixosModules.default` | root | Creates `/home/linuxbrew` with proper ownership |
+| `homeManagerModules.default` | user | Installs Homebrew, manages packages, shell integration |
+
+### Upgrade Path
+
+If you were manually creating `/home/linuxbrew` via activation scripts, you can now:
+
+1. Import `nixosModules.default` in your NixOS configuration
+2. Set `programs.linuxbrew.enableSystemSetup = true`
+3. Remove your manual activation script
+
+### Full Changelog
+
+- Add `nixosModules.default` / `nixosModules.linuxbrew` for NixOS system-level setup
+- Add `nixosModule` convenience alias
+- Update README with comprehensive documentation for both modules
+- Update flake description
+
+---
+
 ## v1.0.2 - Bulletproof Linux Homebrew (2026-03-11)
 
 ### 🎯 **The Compiler Problem - Solved**

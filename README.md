@@ -1,36 +1,18 @@
 # nix-linuxbrew
 
-A [home-manager](https://github.com/nix-community/home-manager) module that lets Nix users on Linux install and manage packages through [Homebrew (Linuxbrew)](https://docs.brew.sh/Homebrew-on-Linux).
+NixOS and [home-manager](https://github.com/nix-community/home-manager) modules for managing [Homebrew (Linuxbrew)](https://docs.brew.sh/Homebrew-on-Linux) on Linux NixOS/nix systems.
 
 ## Features
 
-- Automatically installs Homebrew the first time home-manager activates
+- **NixOS module**: Creates `/home/linuxbrew` directory with proper ownership (requires root)
+- **Home-manager module**: Installs Homebrew and manages packages as your user
 - Declaratively manages taps and formulae
 - Integrates Homebrew into your shell (bash, zsh, fish, nushell)
 - Sets the standard Homebrew environment variables and prefers Nix-provided `curl`/`git`
 - Exposes an `install-brew-packages` command you can re-run at any time
 - Provides a `brew-wrapper` package that works without shell restarts
 
-## Usage
-
-### Quick Start (Wrapper Package - Recommended)
-
-The wrapper package approach works immediately without shell restarts:
-
-```nix
-{
-  inputs.nix-linuxbrew.url = "github:deepwatrcreatur/nix-linuxbrew";
-
-  # Add just the wrapper - no module import needed
-  home.packages = [ nix-linuxbrew.packages.${system}.brew-wrapper ];
-}
-```
-
-The wrapper automatically sets `HOMEBREW_CURL_PATH` and `HOMEBREW_GIT_PATH` on every `brew` invocation, avoiding shell guard issues.
-
-### Full Module Integration
-
-For deeper integration with declarative package management:
+## Installation
 
 ### 1. Add the flake input
 
@@ -50,24 +32,33 @@ For deeper integration with declarative package management:
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-
-  outputs = { nixpkgs, home-manager, nix-linuxbrew, ... }: {
-    homeConfigurations."youruser" = home-manager.lib.homeManagerConfiguration {
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
-      modules = [
-        nix-linuxbrew.homeManagerModules.default
-        ./home.nix
-      ];
-    };
-  };
 }
 ```
 
-### 2. Enable the module and declare packages
+### 2. Configure NixOS (system-level setup)
+
+The NixOS module creates the `/home/linuxbrew` directory with proper ownership. This runs as root during system activation.
+
+```nix
+# configuration.nix or your NixOS host module
+{ inputs, ... }:
+{
+  imports = [ inputs.nix-linuxbrew.nixosModules.default ];
+
+  programs.linuxbrew.enableSystemSetup = true;
+}
+```
+
+### 3. Configure home-manager (user-level setup)
+
+The home-manager module installs Homebrew and manages packages as your user.
 
 ```nix
 # home.nix
+{ inputs, ... }:
 {
+  imports = [ inputs.nix-linuxbrew.homeManagerModules.default ];
+
   programs.linuxbrew = {
     enable = true;
 
@@ -84,7 +75,64 @@ For deeper integration with declarative package management:
 }
 ```
 
-### Options
+## Usage Options
+
+### Quick Start (Wrapper Package Only)
+
+If you just want the `brew` command without declarative package management:
+
+```nix
+{
+  inputs.nix-linuxbrew.url = "github:deepwatrcreatur/nix-linuxbrew";
+
+  # Add just the wrapper - no module import needed
+  home.packages = [ inputs.nix-linuxbrew.packages.${system}.brew-wrapper ];
+}
+```
+
+The wrapper automatically sets `HOMEBREW_CURL_PATH` and `HOMEBREW_GIT_PATH` on every `brew` invocation.
+
+### Full Integration (Recommended)
+
+For complete integration with both system-level directory setup and user-level package management:
+
+```nix
+# flake.nix
+{
+  outputs = { nixpkgs, home-manager, nix-linuxbrew, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        nix-linuxbrew.nixosModules.default
+        {
+          programs.linuxbrew.enableSystemSetup = true;
+        }
+        home-manager.nixosModules.home-manager
+        {
+          home-manager.users.myuser = {
+            imports = [ nix-linuxbrew.homeManagerModules.default ];
+            programs.linuxbrew = {
+              enable = true;
+              brews = [ "hello" "jq" ];
+            };
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
+## Module Reference
+
+### NixOS Module Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `programs.linuxbrew.enableSystemSetup` | `bool` | `false` | Create `/home/linuxbrew` directory with proper ownership |
+| `programs.linuxbrew.brewPrefix` | `str` | `/home/linuxbrew/.linuxbrew` | Homebrew installation prefix |
+
+### Home-Manager Module Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -92,10 +140,53 @@ For deeper integration with declarative package management:
 | `programs.linuxbrew.brewPrefix` | `str` | `/home/linuxbrew/.linuxbrew` | Homebrew installation prefix |
 | `programs.linuxbrew.taps` | `[str]` | `[]` | Homebrew taps to add |
 | `programs.linuxbrew.brews` | `[str]` | `[]` | Homebrew formulae to install |
+| `programs.linuxbrew.ensureCompiler` | `bool` | `true` | Auto-install LLVM for building from source |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     NixOS Activation                         │
+│  (runs as root)                                              │
+│                                                              │
+│  nixosModules.default                                        │
+│  └── Creates /home/linuxbrew with proper ownership           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Home-Manager Activation                     │
+│  (runs as user)                                              │
+│                                                              │
+│  homeManagerModules.default                                  │
+│  ├── Installs Homebrew (if not present)                     │
+│  ├── Installs LLVM compiler (if ensureCompiler = true)      │
+│  ├── Adds configured taps                                    │
+│  ├── Installs configured formulae                            │
+│  └── Configures shell integration                            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ## Notes
 
 - Homebrew is installed under `/home/linuxbrew/.linuxbrew` by default (the standard Linuxbrew location).
-- The module skips setup inside Docker / LXC container environments, where Homebrew is unsupported.
+- The NixOS module should be used on NixOS systems to ensure the directory exists with proper permissions before home-manager runs.
+- The home-manager module skips setup inside Docker/LXC container environments, where Homebrew is unsupported.
 - After the initial `home-manager switch`, run `brew upgrade` to keep your packages up to date.
 - The `install-brew-packages` command is added to your PATH so you can re-run the install/link logic at any time.
+
+## Why Two Modules?
+
+On NixOS, creating `/home/linuxbrew` requires root privileges because:
+
+1. The directory is outside the user's home directory
+2. It needs specific ownership set for the regular user
+
+The NixOS module runs during system activation (as root) to create this directory. The home-manager module then runs as your user to install Homebrew and packages.
+
+If you're not on NixOS (e.g., using nix + home-manager on another Linux distro), you may need to manually create the directory:
+
+```bash
+sudo mkdir -p /home/linuxbrew/.linuxbrew
+sudo chown -R $(id -u):$(id -g) /home/linuxbrew
+```

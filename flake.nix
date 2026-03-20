@@ -1,5 +1,5 @@
 {
-  description = "A home-manager module for managing Homebrew (Linuxbrew) on Linux NixOS/nix systems";
+  description = "NixOS and home-manager modules for managing Homebrew (Linuxbrew) on Linux NixOS/nix systems";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -51,6 +51,16 @@
         };
       }
     ) // {
+      # NixOS system modules (for root-level setup)
+      nixosModules = {
+        default = import ./modules/nixos-linuxbrew.nix;
+        linuxbrew = import ./modules/nixos-linuxbrew.nix;
+      };
+
+      # Convenience alias
+      nixosModule = import ./modules/nixos-linuxbrew.nix;
+
+      # Home Manager modules (for user-level setup)
       homeManagerModules = {
         default = import ./modules/linuxbrew.nix;
         linuxbrew = import ./modules/linuxbrew.nix;
