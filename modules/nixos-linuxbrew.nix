@@ -157,9 +157,13 @@ in
       }
     ];
 
-    system.activationScripts.linuxbrew.text = ''
-      echo "Running Linuxbrew system setup script and compatibility link setup..."
-      ${linuxbrewSetupScript}
-    '';
+    system.activationScripts.linuxbrew = {
+      text = ''
+        echo "Running Linuxbrew system setup script and compatibility link setup..."
+        ${linuxbrewSetupScript}
+      '';
+      # Ensure users are created before we try to resolve owner UID/GID
+      deps = [ "users" ];
+    };
   };
 }
