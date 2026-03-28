@@ -60,7 +60,7 @@
           ];
         };
 
-        checks = {
+        checks = if pkgs.stdenv.isLinux then {
           nixos-basic = (nixpkgs.lib.nixosSystem {
             inherit system;
             modules = [
@@ -92,7 +92,7 @@
               }
             ];
           }).activationPackage;
-        };
+        } else {};
       }
     )
     // {

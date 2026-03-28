@@ -119,6 +119,8 @@ let
     export HOMEBREW_CELLAR="${brewPrefix}/Cellar"
     export HOMEBREW_REPOSITORY="${brewPrefix}/Homebrew"
 
+    ${extraEnvExports}
+
     # Prefer Nix-provided curl/git on NixOS.
     export HOMEBREW_CURL_PATH="${pkgs.curl}/bin/curl"
     export HOMEBREW_GIT_PATH="${brewGit}"
