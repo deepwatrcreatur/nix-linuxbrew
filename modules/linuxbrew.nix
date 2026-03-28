@@ -66,6 +66,8 @@ let
       export HOMEBREW_GITHUB_API_TOKEN="$(${pkgs.coreutils}/bin/cat "${githubTokenPath}")"
     fi
 
+    ${extraEnvExports}
+
     if [ -x "${brewPrefix}/bin/clang" ]; then
       export HOMEBREW_CC="${brewPrefix}/bin/clang"
       export HOMEBREW_CXX="${brewPrefix}/bin/clang++"
