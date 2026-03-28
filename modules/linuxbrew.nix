@@ -51,7 +51,15 @@ let
   installerDepsCombined = installerDeps ++ cfg.extraInstallerDeps;
   runtimeDepsCombined = runtimeDeps ++ cfg.extraRuntimeDeps;
 
-  extraEnvExports = concatStringsSep "\n" (mapAttrsToList (name: value: "export ${name}=\"${value}\"") cfg.extraBrewEnv);
+  # Safely export extra environment variables into the shell scripts.
+  # Values are shell-escaped to avoid interpretation of metacharacters.
+  extraEnvExports = concatStringsSep "\n" (
+    mapAttrsToList (name: value: "export ${name}=${lib.escapeShellArg value}") cfg.extraBrewEnv
+  );
+
+  # Validate extraBrewEnv keys to avoid surprising shell injection via variable names.
+  validEnvName = name: builtins.match "[A-Za-z_][A-Za-z0-9_]*" name != null;
+
 
 
 

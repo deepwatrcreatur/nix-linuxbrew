@@ -238,6 +238,40 @@ programs.linuxbrew = {
 };
 ```
 
+### Running linuxbrew in dry-run mode
+
+```nix
+{ pkgs, ... }:
+
+{
+  programs.linuxbrew = {
+    enable = true;
+    dryRun = true; # only print what would change, do not call brew
+
+    taps = [ "homebrew/core" ];
+    brews = [ "hello" "wget" ];
+  };
+}
+```
+
+### Using a pinned Homebrew installer script
+
+```nix
+{ pkgs, ... }:
+
+{
+  programs.linuxbrew = {
+    enable = true;
+
+    # Pin the Homebrew installer script via Nix instead of fetching at runtime
+    installerScript = pkgs.fetchurl {
+      url = "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh";
+      sha256 = "<fill-in-real-hash>";
+    };
+  };
+}
+```
+
 ### Adding extra tools and environment for Homebrew
 
 ```nix
