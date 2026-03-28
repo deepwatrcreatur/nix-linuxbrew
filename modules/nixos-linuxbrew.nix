@@ -15,34 +15,7 @@ let
 
   # Compatibility symlinks for Homebrew installer on NixOS
   # Homebrew expects certain tools in /bin and /usr/bin
-  compatLinks = [
-    [ "${pkgs.coreutils}/bin/nice" "/usr/bin/nice" ]
-    [ "${pkgs.coreutils}/bin/mkdir" "/bin/mkdir" ]
-    [ "${pkgs.coreutils}/bin/chmod" "/bin/chmod" ]
-    [ "${pkgs.coreutils}/bin/chown" "/bin/chown" ]
-    [ "${pkgs.coreutils}/bin/chgrp" "/bin/chgrp" ]
-    [ "${pkgs.coreutils}/bin/touch" "/bin/touch" ]
-    [ "${pkgs.coreutils}/bin/readlink" "/bin/readlink" ]
-    [ "${pkgs.coreutils}/bin/cat" "/bin/cat" ]
-    [ "${pkgs.coreutils}/bin/sort" "/bin/sort" ]
-    [ "${pkgs.coreutils}/bin/mv" "/bin/mv" ]
-    [ "${pkgs.coreutils}/bin/rm" "/bin/rm" ]
-    [ "${pkgs.coreutils}/bin/ln" "/bin/ln" ]
-    [ "${pkgs.coreutils}/bin/dirname" "/bin/dirname" ]
-    [ "${pkgs.coreutils}/bin/basename" "/bin/basename" ]
-    [ "${pkgs.coreutils}/bin/uname" "/bin/uname" ]
-    [ "${pkgs.coreutils}/bin/sha256sum" "/bin/sha256sum" ]
-    [ "${pkgs.gnutar}/bin/tar" "/bin/tar" ]
-    [ "${pkgs.gzip}/bin/gzip" "/bin/gzip" ]
-    [ "${pkgs.gnugrep}/bin/grep" "/bin/grep" ]
-    [ "${pkgs.bash}/bin/bash" "/bin/bash" ]
-    [ "${pkgs.util-linux}/bin/flock" "/usr/bin/flock" ]
-    [ "${pkgs.coreutils}/bin/stat" "/usr/bin/stat" ]
-    [ "${pkgs.coreutils}/bin/cut" "/usr/bin/cut" ]
-    [ "${pkgs.coreutils}/bin/dirname" "/usr/bin/dirname" ]
-    [ "${pkgs.coreutils}/bin/sha256sum" "/usr/bin/sha256sum" ]
-    [ "${pkgs.glibc.bin}/bin/ldd" "/usr/bin/ldd" ]
-  ];
+  compatLinks = cfg.compatSymlinks;
 
   # Pinned paths for core utilities
   mkdir = "${pkgs.coreutils}/bin/mkdir";
@@ -139,6 +112,43 @@ in
         Username who should own the Homebrew directory.
         If not set, defaults to the first regular user (UID >= 1000) found in /etc/passwd.
         On multi-user systems, you should explicitly set this to the user who will run home-manager.
+      '';
+    };
+ 
+    compatSymlinks = mkOption {
+      type = types.listOf (types.listOf types.str);
+      default = [
+        [ "${pkgs.coreutils}/bin/nice" "/usr/bin/nice" ]
+        [ "${pkgs.coreutils}/bin/mkdir" "/bin/mkdir" ]
+        [ "${pkgs.coreutils}/bin/chmod" "/bin/chmod" ]
+        [ "${pkgs.coreutils}/bin/chown" "/bin/chown" ]
+        [ "${pkgs.coreutils}/bin/chgrp" "/bin/chgrp" ]
+        [ "${pkgs.coreutils}/bin/touch" "/bin/touch" ]
+        [ "${pkgs.coreutils}/bin/readlink" "/bin/readlink" ]
+        [ "${pkgs.coreutils}/bin/cat" "/bin/cat" ]
+        [ "${pkgs.coreutils}/bin/sort" "/bin/sort" ]
+        [ "${pkgs.coreutils}/bin/mv" "/bin/mv" ]
+        [ "${pkgs.coreutils}/bin/rm" "/bin/rm" ]
+        [ "${pkgs.coreutils}/bin/ln" "/bin/ln" ]
+        [ "${pkgs.coreutils}/bin/dirname" "/bin/dirname" ]
+        [ "${pkgs.coreutils}/bin/basename" "/bin/basename" ]
+        [ "${pkgs.coreutils}/bin/uname" "/bin/uname" ]
+        [ "${pkgs.coreutils}/bin/sha256sum" "/bin/sha256sum" ]
+        [ "${pkgs.gnutar}/bin/tar" "/bin/tar" ]
+        [ "${pkgs.gzip}/bin/gzip" "/bin/gzip" ]
+        [ "${pkgs.gnugrep}/bin/grep" "/bin/grep" ]
+        [ "${pkgs.bash}/bin/bash" "/bin/bash" ]
+        [ "${pkgs.util-linux}/bin/flock" "/usr/bin/flock" ]
+        [ "${pkgs.coreutils}/bin/stat" "/usr/bin/stat" ]
+        [ "${pkgs.coreutils}/bin/cut" "/usr/bin/cut" ]
+        [ "${pkgs.coreutils}/bin/dirname" "/usr/bin/dirname" ]
+        [ "${pkgs.coreutils}/bin/sha256sum" "/usr/bin/sha256sum" ]
+        [ "${pkgs.glibc.bin}/bin/ldd" "/usr/bin/ldd" ]
+      ];
+      description = ''
+        Compatibility symlinks created before running the Homebrew installer.
+        Set to [] to disable symlink creation, or override to customize the mapping
+        as a list of [ source target ] pairs.
       '';
     };
   };
