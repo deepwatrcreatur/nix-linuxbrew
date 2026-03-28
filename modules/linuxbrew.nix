@@ -10,7 +10,13 @@ with lib;
 let
   cfg = config.programs.linuxbrew;
 
+  githubTokenPath = if cfg.githubApiTokenFile == null then "/dev/null" else cfg.githubApiTokenFile;
+
   brewPrefix = cfg.brewPrefix;
+  brewGit = pkgs.writeShellScript "brew-git" ''
+    export PATH="${pkgs.openssh}/bin:$PATH"
+    exec ${pkgs.git}/bin/git "$@"
+  '';
 
   # Packages needed by the Homebrew installer on NixOS
   installerDeps = [
@@ -42,22 +48,59 @@ let
     pkgs.openssh
   ];
 
+  installerDepsCombined = installerDeps ++ cfg.extraInstallerDeps;
+  runtimeDepsCombined = runtimeDeps ++ cfg.extraRuntimeDeps;
+
+  extraEnvExports = concatStringsSep "\n" (mapAttrsToList (name: value: "export ${name}=\"${value}\"") cfg.extraBrewEnv);
+
+
+
+  brewWrapper = pkgs.writeShellScriptBin "brew" ''
+    export HOMEBREW_PREFIX="${brewPrefix}"
+    export HOMEBREW_CELLAR="${brewPrefix}/Cellar"
+    export HOMEBREW_REPOSITORY="${brewPrefix}/Homebrew"
+    export HOMEBREW_CURL_PATH="${pkgs.curl}/bin/curl"
+    export HOMEBREW_GIT_PATH="${brewGit}"
+
+    if [ -f "${githubTokenPath}" ]; then
+      export HOMEBREW_GITHUB_API_TOKEN="$(${pkgs.coreutils}/bin/cat "${githubTokenPath}")"
+    fi
+
+    ${extraEnvExports}
+
+    if [ -x "${brewPrefix}/bin/clang" ]; then
+      export HOMEBREW_CC="${brewPrefix}/bin/clang"
+      export HOMEBREW_CXX="${brewPrefix}/bin/clang++"
+    elif [ -x "${brewPrefix}/bin/gcc" ]; then
+      export HOMEBREW_CC="${brewPrefix}/bin/gcc"
+      export HOMEBREW_CXX="${brewPrefix}/bin/g++"
+    elif [ -x "${brewPrefix}/bin/gcc-15" ]; then
+      export HOMEBREW_CC="${brewPrefix}/bin/gcc-15"
+      export HOMEBREW_CXX="${brewPrefix}/bin/g++-15"
+    fi
+
+    export PATH="${brewPrefix}/bin:${brewPrefix}/sbin:${pkgs.openssh}/bin:$PATH"
+    exec ${brewPrefix}/bin/brew "$@"
+  '';
+
   installBrewScript = pkgs.writeShellScript "install-brew-packages" ''
     # Don't use set -e; we want to continue even if some packages fail
     set -u
 
-    # Skip linuxbrew setup in container environments - it's not compatible
-    if [ -f /.dockerenv ] || grep -q 'lxc' /proc/1/cgroup 2>/dev/null; then
-      echo "Skipping linuxbrew setup in container environment"
-      exit 0
-    fi
+    ${optionalString (!cfg.allowContainerInstall) ''
+      # Skip linuxbrew setup in container environments - it's not compatible by default
+      if [ -f /.dockerenv ] || grep -q 'lxc' /proc/1/cgroup 2>/dev/null; then
+        echo "Skipping linuxbrew setup in container environment (allowContainerInstall = false)"
+        exit 0
+      fi
+    ''}
 
     # Install Homebrew if not present
     if [ ! -f "${brewPrefix}/bin/brew" ]; then
       echo "Installing Homebrew to ${brewPrefix}..."
 
       # Set up comprehensive PATH for homebrew installer on NixOS
-      export PATH="${lib.makeBinPath installerDeps}:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:$PATH"
+      export PATH="${lib.makeBinPath installerDepsCombined}:/nix/var/nix/profiles/default/bin:/run/current-system/sw/bin:$PATH"
 
       # Run the installer with proper environment
       # NONINTERACTIVE=1 prevents the script from prompting the user
@@ -71,17 +114,20 @@ let
 
     # Set up environment
     # Homebrew expects common core utilities in PATH.
-    export PATH="${lib.makeBinPath runtimeDeps}:${brewPrefix}/bin:${brewPrefix}/sbin:$PATH"
+    export PATH="${lib.makeBinPath runtimeDepsCombined}:${brewPrefix}/bin:${brewPrefix}/sbin:$PATH"
     export HOMEBREW_PREFIX="${brewPrefix}"
     export HOMEBREW_CELLAR="${brewPrefix}/Cellar"
     export HOMEBREW_REPOSITORY="${brewPrefix}/Homebrew"
 
+    ${extraEnvExports}
+
     # Prefer Nix-provided curl/git on NixOS.
     export HOMEBREW_CURL_PATH="${pkgs.curl}/bin/curl"
-    export HOMEBREW_GIT_PATH="${pkgs.writeShellScript "brew-git" ''
-      export PATH="${pkgs.openssh}/bin:$PATH"
-      exec ${pkgs.git}/bin/git "$@"
-    ''}"
+    export HOMEBREW_GIT_PATH="${brewGit}"
+
+    if [ -f "${githubTokenPath}" ]; then
+      export HOMEBREW_GITHUB_API_TOKEN="$(${pkgs.coreutils}/bin/cat "${githubTokenPath}")"
+    fi
 
     # Add taps (continue on failure)
     ${concatStringsSep "\n" (
@@ -151,6 +197,68 @@ in
         Set to false if you prefer to manage compilers manually.
       '';
     };
+
+    githubApiTokenFile = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "\${config.home.homeDirectory}/.local/share/agenix-user-secrets/github-token";
+      description = ''
+        Optional path to a file containing a GitHub API token for Homebrew.
+        When present, the token is exported as HOMEBREW_GITHUB_API_TOKEN during
+        installation and wrapper-based brew invocations to reduce API rate limiting.
+      '';
+    };
+
+    extraInstallerDeps = mkOption {
+      type = types.listOf types.package;
+      default = [ ];
+      example = [ pkgs.git pkgs.wget ];
+      description = ''
+        Additional Nix packages to add to the Homebrew installer PATH.
+        Useful if the installer script needs extra tools in specific environments.
+      '';
+    };
+
+    extraRuntimeDeps = mkOption {
+      type = types.listOf types.package;
+      default = [ ];
+      example = [ pkgs.gnutar pkgs.gzip ];
+      description = ''
+        Additional Nix packages to add to the runtime PATH when running Homebrew
+        via the install script.
+      '';
+    };
+
+    extraBrewEnv = mkOption {
+      type = types.attrsOf types.str;
+      default = { };
+      example = { HTTP_PROXY = "http://proxy:8080"; HOMEBREW_NO_ANALYTICS = "1"; };
+      description = ''
+        Extra environment variables to export before running the Homebrew wrapper
+        and installer. Values are literal strings.
+      '';
+    };
+
+    allowContainerInstall = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        When false (the default), skip Homebrew installation and setup inside
+        Docker or LXC container environments, where Homebrew is typically
+        unsupported. Set to true if you explicitly want to allow installation
+        inside containers.
+      '';
+    };
+
+    installWrapper = mkOption {
+      type = types.bool;
+      default = false;
+      description = ''
+        Install a `brew` wrapper into home.packages. This makes the command
+        available immediately with the expected Homebrew environment, even
+        before a shell restart picks up PATH changes.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -160,10 +268,7 @@ in
       HOMEBREW_CELLAR = "${brewPrefix}/Cellar";
       HOMEBREW_REPOSITORY = "${brewPrefix}/Homebrew";
       HOMEBREW_CURL_PATH = "${pkgs.curl}/bin/curl";
-      HOMEBREW_GIT_PATH = "${pkgs.writeShellScript "brew-git" ''
-        export PATH="${pkgs.openssh}/bin:$PATH"
-        exec ${pkgs.git}/bin/git "$@"
-      ''}";
+      HOMEBREW_GIT_PATH = "${brewGit}";
     };
 
     # Shell integration — only when the respective shell program is enabled
@@ -192,11 +297,13 @@ in
     '';
 
     # Make the install/update script available as a CLI command
-    home.packages = [
-      (pkgs.writeShellScriptBin "install-brew-packages" ''
+    home.packages =
+      [
+        (pkgs.writeShellScriptBin "install-brew-packages" ''
         exec ${installBrewScript}
       '')
-    ];
+      ]
+      ++ optionals cfg.installWrapper [ brewWrapper ];
 
     # Run during home-manager activation (as user, not root)
     home.activation.installHomebrew = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

@@ -141,6 +141,8 @@ For complete integration with both system-level directory setup and user-level p
 | `programs.linuxbrew.taps` | `[str]` | `[]` | Homebrew taps to add |
 | `programs.linuxbrew.brews` | `[str]` | `[]` | Homebrew formulae to install |
 | `programs.linuxbrew.ensureCompiler` | `bool` | `true` | Auto-install LLVM for building from source |
+| `programs.linuxbrew.githubApiTokenFile` | `null or str` | `null` | Optional path to a GitHub token file for Homebrew API access |
+| `programs.linuxbrew.installWrapper` | `bool` | `false` | Add a `brew` wrapper package to `home.packages` |
 
 ## Architecture
 
@@ -171,7 +173,7 @@ For complete integration with both system-level directory setup and user-level p
 
 - Homebrew is installed under `/home/linuxbrew/.linuxbrew` by default (the standard Linuxbrew location).
 - The NixOS module should be used on NixOS systems to ensure the directory exists with proper permissions before home-manager runs.
-- The home-manager module skips setup inside Docker/LXC container environments, where Homebrew is unsupported.
+- The home-manager module skips setup inside Docker/LXC container environments by default, where Homebrew is unsupported. Set `programs.linuxbrew.allowContainerInstall = true;` to override this behaviour (not generally recommended).
 - After the initial `home-manager switch`, run `brew upgrade` to keep your packages up to date.
 - The `install-brew-packages` command is added to your PATH so you can re-run the install/link logic at any time.
 
@@ -189,4 +191,69 @@ If you're not on NixOS (e.g., using nix + home-manager on another Linux distro),
 ```bash
 sudo mkdir -p /home/linuxbrew/.linuxbrew
 sudo chown -R $(id -u):$(id -g) /home/linuxbrew
+```
+
+## Security & system impact
+
+The NixOS module can create a set of compatibility symlinks in `/bin` and `/usr/bin` so that the Homebrew installer finds the core tools it expects. These symlinks point to immutable Nix store binaries such as `coreutils`, `bash`, and `tar`.
+
+You can customise or disable this behaviour via `programs.linuxbrew.compatSymlinks`. Set it to `[]` to skip creating any symlinks, or override it with your own list of `[ source target ]` pairs.
+
+## Advanced configuration examples
+
+### Using a GitHub token with Homebrew
+
+```nix
+programs.linuxbrew = {
+  enable = true;
+  githubApiTokenFile = "${config.home.homeDirectory}/.local/share/agenix-user-secrets/github-token";
+};
+```
+
+### Making the `brew` wrapper available immediately
+
+```nix
+programs.linuxbrew = {
+  enable = true;
+  installWrapper = true;
+  brews = [ "hello" "jq" ];
+};
+```
+
+### Managing the compiler toolchain explicitly
+
+```nix
+programs.linuxbrew = {
+  enable = true;
+  ensureCompiler = false; # skip automatic LLVM install
+};
+```
+
+### Allowing Homebrew in containers (not generally recommended)
+
+```nix
+programs.linuxbrew = {
+  enable = true;
+  allowContainerInstall = true;
+};
+```
+
+### Adding extra tools and environment for Homebrew
+
+```nix
+{ pkgs, ... }:
+
+{
+  programs.linuxbrew = {
+    enable = true;
+
+    extraInstallerDeps = [ pkgs.git pkgs.wget ];
+    extraRuntimeDeps = [ pkgs.wget ];
+
+    extraBrewEnv = {
+      HOMEBREW_NO_ANALYTICS = "1";
+      HTTP_PROXY = "http://proxy:8080";
+    };
+  };
+}
 ```
