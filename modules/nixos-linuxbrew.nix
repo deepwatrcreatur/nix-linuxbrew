@@ -151,6 +151,14 @@ in
         as a list of [ source target ] pairs.
       '';
     };
+
+    # Ensure compatSymlinks entries are well-formed [ source target ] pairs
+    extraAssertions = [
+      {
+        assertion = lib.all (link: builtins.length link == 2) cfg.compatSymlinks;
+        message = "Each entry in programs.linuxbrew.compatSymlinks must be a 2-element list [source target].";
+      }
+    ];
   };
 
   config = mkIf cfg.enableSystemSetup {
