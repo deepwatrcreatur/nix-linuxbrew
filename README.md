@@ -218,6 +218,16 @@ programs.linuxbrew = {
   installWrapper = true;
   brews = [ "hello" "jq" ];
 };
+
+## Agent Work Queue
+
+If you are assigning or running agents against this repo, start with:
+
+- [`docs/work-items/START-HERE.md`](docs/work-items/START-HERE.md)
+
+The seed roadmap behind that queue is tracked in:
+
+- [`docs/improvements.md`](docs/improvements.md)
 ```
 
 ### Managing the compiler toolchain explicitly
