@@ -286,7 +286,7 @@ in
       fi
     '';
 
-    programs.zsh.initExtra = mkIf config.programs.zsh.enable ''
+    programs.zsh.initContent = mkIf config.programs.zsh.enable ''
       if [ -f "${brewPrefix}/bin/brew" ]; then
         export PATH="${brewPrefix}/bin:${brewPrefix}/sbin:$PATH"
       fi
