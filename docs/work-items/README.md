@@ -32,6 +32,10 @@ parallel on separate branches.
 7. `07-multi-user-guidance-and-defaults.md`
 8. `08-maintenance-ergonomics.md`
 
+## Recently Completed
+
+- [`09-coreutils-compat-symlinks-for-homebrew-7.md`](./09-coreutils-compat-symlinks-for-homebrew-7.md) — `done` (commit `9df0591`)
+
 ## Why This Structure
 
 Small files work better than one large roadmap because they:
