@@ -141,8 +141,14 @@ in
         [ "${pkgs.util-linux}/bin/flock" "/usr/bin/flock" ]
         [ "${pkgs.coreutils}/bin/stat" "/usr/bin/stat" ]
         [ "${pkgs.coreutils}/bin/cut" "/usr/bin/cut" ]
-        [ "${pkgs.coreutils}/bin/dirname" "/usr/bin/dirname" ]
-        [ "${pkgs.coreutils}/bin/sha256sum" "/usr/bin/sha256sum" ]
+        [ "${pkgs.coreutils}/bin/tr" "/bin/tr" ]
+        [ "${pkgs.coreutils}/bin/tr" "/usr/bin/tr" ]
+        [ "${pkgs.coreutils}/bin/wc" "/bin/wc" ]
+        [ "${pkgs.coreutils}/bin/wc" "/usr/bin/wc" ]
+        [ "${pkgs.curl}/bin/curl" "/bin/curl" ]
+        [ "${pkgs.curl}/bin/curl" "/usr/bin/curl" ]
+        [ "${pkgs.git}/bin/git" "/bin/git" ]
+        [ "${pkgs.git}/bin/git" "/usr/bin/git" ]
         [ "${pkgs.glibc.bin}/bin/ldd" "/usr/bin/ldd" ]
       ];
       description = ''
